@@ -1,0 +1,36 @@
+version: 2
+jobs:
+  build:
+    docker:
+      - image: circleci/python:3.7.1
+    environment:
+      REPO: michaelvl/kubeaudit
+      KUBEAUDIT_VERSION: "0.7.0"
+    steps:
+      - checkout
+      - setup_remote_docker
+      - run:
+          name: Setup environment variables
+          command: |
+            echo "REPO=$REPO" >> $BASH_ENV
+            GITCOMMIT=${CIRCLE_SHA1::7}
+            NOW=$(date +%Y%m%d-%H%M)
+            FULLNAME="$REPO:$NOW-$GITCOMMIT-$KUBEAUDIT_VERSION"
+            SHORTNAME="$REPO:$KUBEAUDIT_VERSION"
+            echo "FULLNAME=$FULLNAME" >> $BASH_ENV
+            echo "SHORTNAME=$SHORTNAME" >> $BASH_ENV
+            echo "Branch $CIRCLE_BRANCH"
+            echo "Using full name $FULLNAME"
+            echo "Using version $KUBEAUDIT_VERSION"
+      - run:
+          name: Build container image
+          command: |
+            docker build --build-arg KUBEAUDIT_VERSION=$KUBEAUDIT_VERSION -t $SHORTNAME .
+            if [ "${CIRCLE_BRANCH}" == "master" ]; then
+              docker tag $SHORTNAME $REPO:latest
+            fi
+      - run:
+          name: Push container image
+          command: |
+            echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
+            docker push $REPO
